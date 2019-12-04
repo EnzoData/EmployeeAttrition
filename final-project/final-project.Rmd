@@ -1,0 +1,624 @@
+---
+title: "IBM Attrition - A Logistic Regression Approach"
+output: html_notebook
+---
+
+```{r}
+source("pairs.r")
+
+
+library(dplyr)
+library(ggplot2)
+library(pastecs)
+library(psych)
+library(Amelia)
+library(mlbench)
+library(corrplot)
+library(caret)
+library(readr)
+library(gridExtra)
+library(grid)
+library(ggplot2)
+library(lattice)
+library(leaps)
+```
+
+#### Load data
+```{r}
+data <- read_csv("data/WA_Fn-UseC_-HR-Employee-Attrition.csv")
+head(data)
+```
+
+#### Summarize Data
+```{r}
+names(data)
+summary(data)
+```
+
+#### Clean and Format Data
+```{r}
+#####################################
+##
+## Reformat the data so that it is
+## 1) Easy to use (add nice column names)
+## 2) Interpreted correctly by glm()..
+##
+#####################################
+
+data$Attrition <- ifelse(data$Attrition == "Yes", 1, 0)
+data$Attrition <- factor(data$Attrition, levels = c(0, 1))
+
+data$Over18 <- ifelse(data$Over18 == "Y", 1, 0)
+data$Over18 <- factor(data$Over18, levels = c(0, 1))
+
+data$OverTime <- ifelse(data$OverTime == "Yes", 1, 0)
+data$OverTime <- factor(data$OverTime, levels = c(0, 1))
+
+data$BusinessTravel<-factor(data$BusinessTravel)
+data$Department<-factor(data$Department)
+data$EducationField<-factor(data$EducationField)
+data$Gender<-factor(data$Gender)
+data$MaritalStatus<-factor(data$MaritalStatus)
+data$JobRole<-factor(data$JobRole)
+
+data$Education<-factor(data$Education, order = TRUE, levels=c(1,2,3,4,5))
+data$EnvironmentSatisfaction<-factor(data$EnvironmentSatisfaction, order=TRUE, levels=c(1,2,3,4))
+data$JobInvolvement<-factor(data$JobInvolvement, order=TRUE, levels=c(1,2,3,4))
+data$JobSatisfaction<-factor(data$JobSatisfaction, order=TRUE, levels=c(1,2,3,4))
+data$PerformanceRating<-factor(data$PerformanceRating, order=TRUE, levels=c(1,2,3,4))
+data$RelationshipSatisfaction<-factor(data$RelationshipSatisfaction, order=TRUE, levels=c(1,2,3,4))
+data$WorkLifeBalance<-factor(data$WorkLifeBalance, order=TRUE, levels=c(1,2,3,4))
+data$StockOptionLevel<-factor(data$StockOptionLevel, order=TRUE, levels=c(0,1,2,3))
+
+original.data<-data
+```
+
+
+#### Describe Data
+```{r}
+stat.desc(data)
+describe(data)
+str(data)
+summary(data)
+```
+
+
+#### Plot all Data Features Against Attrition
+```{r}
+for(i in 1:length(data)) {
+  plot(data$Attrition, eval(parse(text=paste("data",names(data)[i],sep="$"))), xlab = "Attrition", ylab = names(data)[i])
+}
+```
+
+
+#### Plot Missing Data
+```{r}
+help(missmap)
+options(repr.plot.width = 24, repr.plot.height = 24)
+missmap(data, col=c("blue", "red"), legend=TRUE)
+```
+
+
+#### Plot Correlations
+```{r}
+options(repr.plot.width = 16, repr.plot.height = 16)
+num_data <- data[, sapply(data, is.numeric)]
+stat.desc(num_data)
+correlations <- cor(num_data)
+corrplot(correlations, method="circle")
+```
+
+
+```{r}
+# View(data)
+plot(data[c(2,1,3,4,5)])
+plot(data[c(2,6,7,8,9)])
+plot(data[c(2,10,11,12,13)])
+plot(data[c(2,14,15,16,17)])
+plot(data[c(2,18,19,20,21)])
+plot(data[c(2,22,23,24,25)])
+plot(data[c(2,26,27,28,29)])
+plot(data[c(2,30,31,32,33)])
+plot(data[c(2,34,35)])
+```
+
+
+#### Summarize Categorical Data
+```{r}
+cat_data <- data[, sapply(data, is.factor)]
+summary(cat_data)
+```
+
+
+#### Plot our Data
+```{r}
+ggplot(data=data, aes(Attrition)) + geom_histogram(stat="count") + labs(x="Attrition")
+ggplot(data=data, aes(Age)) + geom_histogram(binwidth=5) + labs(x="Age")
+ggplot(data=data, aes(BusinessTravel)) + geom_histogram(stat="count") + labs(x="Business Travel")
+ggplot(data=data, aes(DailyRate)) + geom_histogram(binwidth=15) + labs(x="Daily Rate")
+ggplot(data=data, aes(Department)) + geom_histogram(stat="count") + labs(x="Department")
+ggplot(data=data, aes(DistanceFromHome)) + geom_histogram(binwidth=5) + labs(x="Distance from Home")
+ggplot(data=data, aes(Education)) + geom_histogram(stat="count") + labs(x="Education")
+ggplot(data=data, aes(EducationField)) + geom_histogram(stat="count") + labs(x="Education Field")
+ggplot(data=data, aes(EmployeeCount)) + geom_histogram(binwidth=1) + labs(x="Employee Count")
+ggplot(data=data, aes(EmployeeNumber)) + geom_histogram(binwidth=20) + labs(x="Employee Number")
+ggplot(data=data, aes(EnvironmentSatisfaction)) + geom_histogram(stat="count") + labs(x="Environment Satisfaction")
+ggplot(data=data, aes(Gender)) + geom_histogram(stat="count") + labs(x="Gender")
+ggplot(data=data, aes(HourlyRate)) + geom_histogram(binwidth=5) + labs(x="Hourly Rate")
+ggplot(data=data, aes(JobInvolvement)) + geom_histogram(stat="count") + labs(x="Job Involvement")
+ggplot(data=data, aes(JobLevel)) + geom_histogram(stat="count") + labs(x="Job Level")
+ggplot(data=data, aes(JobRole)) + geom_histogram(stat="count") + labs(x="Job Role")
+ggplot(data=data, aes(JobSatisfaction)) + geom_histogram(stat="count") + labs(x="Job Satisfaction")
+ggplot(data=data, aes(MaritalStatus)) + geom_histogram(stat="count") + labs(x="Marital Status")
+ggplot(data=data, aes(MonthlyIncome)) + geom_histogram(binwidth=50) + labs(x="Monthly Income")
+ggplot(data=data, aes(MonthlyRate)) + geom_histogram(binwidth=50) + labs(x="Monthly Rate")
+ggplot(data=data, aes(NumCompaniesWorked)) + geom_histogram(binwidth=1) + labs(x="Num Companies Worked")
+ggplot(data=data, aes(Over18)) + geom_histogram(stat="count") + labs(x="Over 18")
+ggplot(data=data, aes(PercentSalaryHike)) + geom_histogram(binwidth=5) + labs(x="Percent Salary Hike")
+ggplot(data=data, aes(PerformanceRating)) + geom_histogram(stat="count") + labs(x="Performance Rating")
+ggplot(data=data, aes(RelationshipSatisfaction)) + geom_histogram(stat="count") + labs(x="Relationship Satisfaction")
+ggplot(data=data, aes(StandardHours)) + geom_histogram(binwidth=5) + labs(x="Standard Hours")
+ggplot(data=data, aes(StockOptionLevel)) + geom_histogram(stat="count") + labs(x="Stock Option Level")
+ggplot(data=data, aes(TotalWorkingYears)) + geom_histogram(binwidth=5) + labs(x="Total Working Years")
+ggplot(data=data, aes(TrainingTimesLastYear)) + geom_histogram(binwidth=5) + labs(x="Training Times Last Year")
+ggplot(data=data, aes(WorkLifeBalance)) + geom_histogram(stat="count") + labs(x="Work Life Balance")
+ggplot(data=data, aes(YearsAtCompany)) + geom_histogram(binwidth=2) + labs(x="Years At Company")
+ggplot(data=data, aes(YearsSinceLastPromotion)) + geom_histogram(binwidth=2) + labs(x="Years Since Last Promotion")
+ggplot(data=data, aes(YearsWithCurrManager)) + geom_histogram(binwidth=2) + labs(x="Years With Curr Manager")
+```
+
+```{r}
+
+#######################################
+##  BUILD OUR LOGISTIC MODEL - logmod
+#######################################
+
+# xtabs(~Attrition + Age, data=data)
+xtabs(~Attrition + BusinessTravel, data=data)
+# xtabs(~Attrition + DailyRate, data=data)
+xtabs(~Attrition + factor(Department), data=data)
+# xtabs(~Attrition + DistanceFromHome, data=data)
+xtabs(~Attrition + factor(Education), data=data)
+xtabs(~Attrition + EducationField, data=data)
+xtabs(~Attrition + EmployeeCount, data=data)
+# xtabs(~Attrition + EmployeeNumber, data=data)
+xtabs(~Attrition + factor(EnvironmentSatisfaction), data=data)
+xtabs(~Attrition + factor(Gender), data=data)
+# xtabs(~Attrition + HourlyRate, data=data)
+xtabs(~Attrition + factor(JobInvolvement), data=data)
+xtabs(~Attrition + factor(JobLevel), data=data)
+xtabs(~Attrition + factor(JobRole), data=data)
+xtabs(~Attrition + factor(JobSatisfaction), data=data)
+xtabs(~Attrition + factor(MaritalStatus), data=data)
+# xtabs(~Attrition + MonthlyIncome, data=data)
+# xtabs(~Attrition + MonthlyRate, data=data)
+xtabs(~Attrition + NumCompaniesWorked, data=data)
+xtabs(~Attrition + factor(OverTime), data=data)
+# xtabs(~Attrition + PercentSalaryHike, data=data)
+xtabs(~Attrition + factor(PerformanceRating), data=data)
+xtabs(~Attrition + factor(RelationshipSatisfaction), data=data)
+xtabs(~Attrition + StandardHours, data=data)
+xtabs(~Attrition + factor(StockOptionLevel), data=data)
+# xtabs(~Attrition + TotalWorkingYears, data=data)
+xtabs(~Attrition + TrainingTimesLastYear, data=data)
+xtabs(~Attrition + factor(WorkLifeBalance), data=data)
+# xtabs(~Attrition + YearsAtCompany, data=data)
+# xtabs(~Attrition + YearsSinceLastPromotion, data=data)
+# xtabs(~Attrition + YearsWithCurrManager, data=data)
+```
+
+
+#### Compensating for Unbalanced Data
+
+When we plot the histogram of Attrition, we immediate observe an unbalanced dataset where the minority value is 1 corresponding to employees leaving an organization.
+
+```{r}
+data<-original.data
+ggplot(data=data, aes(Attrition)) + geom_histogram(stat="count") + labs(x="Attrition")
+```
+
+To compensate for this, we use a technique called over/undersampling using the ROSE library which results on a balanced dataset.
+
+```{r}
+#balancing data:
+#what to do if number of 1's is much smaller than the number of 0's
+#find the indeces corresponding to 0s, and 1's
+input_ones <- data[which(data$Attrition == 1), ]  # all 1's
+input_zeros <- data[which(data$Attrition == 0), ]  # all 0's
+
+#reduce the number of 0's by selecting a sample at random of the size of the 1's you have. 
+#you can have a different proportion. I made it 50:50 but use your judgement. 
+#Perhaps you want 1:2 ratio to include more cases.
+#set.seed(100)  # for repeatability of samples
+#which.zeros<- sample(1:nrow(input_zeros), nrow(input_ones))
+#sample.from.zeros<-input_zeros[which.zeros,]
+#put the data together:
+#balanced.data<-rbind(input_ones,sample.from.zeros)
+
+#Altenatively, you can leave the zeros as they are and resample the 1's
+#set.seed(100)  # for repeatability of samples
+#which.ones<- sample(1:2*nrow(input_ones), nrow(input_zeros),replace=TRUE)
+#resample.ones<-input_ones[which.ones,]
+#balanced.data<-rbind(resample.ones,input_zeros)
+
+#another way: sake a sample of the same zise for both (p=.5), total samples=3000
+#  "both" oversamples minority(1's) and undersamples mayority(0's)
+library(ROSE)
+balanced.data<-ovun.sample(Attrition~.,data=data,method="both",p=0.5,N=3000,seed=1)$data
+```
+
+
+```{r}
+#####################################
+##
+## Now we will use all of the data available to predict attrition
+##
+#####################################
+data<-balanced.data
+
+logmod <- glm(
+  factor(Attrition) ~ 
+    Age
+  + factor(BusinessTravel) * DistanceFromHome * factor(MaritalStatus) * factor(WorkLifeBalance)
+  + DailyRate
+  + factor(Department)
+  + factor(Education) * EducationField
+  + factor(JobInvolvement) * factor(JobLevel) * factor(JobSatisfaction)
+  + factor(EnvironmentSatisfaction) * factor(Gender) * factor(JobRole)
+  + MonthlyIncome * HourlyRate * factor(OverTime)
+  + NumCompaniesWorked
+  + factor(PerformanceRating)
+  + factor(RelationshipSatisfaction)
+  + factor(StockOptionLevel) * TotalWorkingYears * TrainingTimesLastYear
+  + PercentSalaryHike * YearsAtCompany * YearsSinceLastPromotion * YearsWithCurrManager
+  , data=data
+  , family=binomial
+)
+summary(logmod)
+AIC(logmod)
+BIC(logmod)
+```
+
+
+## Exponentiating we get the Odds Ratio
+
+Odds Ratios You can also exponentiate the coefficients and interpret them as odds-ratios.
+
+    ln a P(Attrition=1)/P(Attrition=0)
+
+R will do this computation for you. To get the exponentiated coefficients, you tell R that you want to exponentiate (exp), and that the object you want to exponentiate is called coefficients and it is part of mylogit (coef(logmod)). We can use the same logic to get odds ratios and their confidence intervals, by exponentiating the confidence intervals from before. To put it all in one table, we use cbind to bind the coefficients and confidence intervals column-wise.
+
+```{r}
+#cbind(exp.coef=exp(logmod$coef),exp(confint(logmod)))
+```
+
+If we use R's diagnostic plot, the first one is the scatterplot of the residuals, against predicted values (the score actually).
+
+```{r}
+plot(logmod,which=1)
+```
+
+```{r}
+plot(predict(logmod),residuals(logmod))
+abline(h=0,lty=2,col="grey")
+```
+
+
+# Tests for Coefficients: Walds Tests
+
+- H0:βj=0  (Xj has no effect on P(Y=1)) vs
+
+- Ha:βj≠0
+
+Test statistic:
+
+z=bj/se(bj)
+
+this is approximately N(0,1) under H0
+
+Attrition Example: #fitting the logistic model
+
+
+```{r}
+#summary(logmod)
+```
+
+# Test for subset of variables:
+
+- H0:βp−k+1=⋯=βp=0  reduced model
+
+- Ha:  full model ( all variables in the model)
+
+This is likelihood ratio test that compares the log likelihoods of the two models
+
+Λ=2 ln L(Full model)/L(Reduced model)
+
+Asymptotically, Λ has a Chi-square distribution. Thus the test statistics is aproximate Chi-square.
+
+**Test statistic:**
+
+χ2=2 log L(Full model) − 2 log L(Reduced model)
+
+where L()= the likelihood function
+
+Under the null hypothesis, the test statistic is approximately Chi-squared with df=k (number of additional variables in the full model)
+
+
+# Deviance
+
+The Deviance of a model is
+
+Deviance = D = −2 log L(model)
+
+So, the tests statistic for the above situation is
+
+χ2=D(Reduced model)−D(Full model)
+
+
+# Model Overall Test:
+
+- H0:  reduced model = no variables (only intercept) β1=⋯βp=0 This is the NULL model
+
+- Ha:  full model (all variables in the model)
+
+Test statistic:
+
+Deviance= χ^2=-2 log L(reduced)/L(full) = D(reduced)-D(full)
+
+Approximately χ2 with df=n−p
+
+```{r}
+# anova(logmod)
+```
+
+
+#### Now calculate the overall "Pseudo R-squared" and its p-value
+```{r}
+ll.null <- logmod$null.deviance/-2
+ll.proposed <- logmod$deviance/-2
+ll.null
+ll.proposed
+```
+
+
+#### McFadden's Pseudo R^2 = [ LL(Null) - LL(Proposed) ] / LL(Null)
+```{r}
+(ll.null - ll.proposed) / ll.null
+```
+
+
+#### The p-value for the R^2
+```{r}
+1 - pchisq(2*(ll.proposed - ll.null), df=(length(logmod$coefficients)-1))
+```
+
+This means that the model with our regressors and interactions in it is better than the model with no variables.
+
+#### now we can plot the data
+```{r}
+predicted.data <- data.frame(
+  probability.of.Attrition=logmod$fitted.values,
+  Attrition=data$Attrition)
+
+predicted.data <- predicted.data[order(predicted.data$probability.of.Attrition, decreasing=FALSE),]
+predicted.data$rank <- 1:nrow(predicted.data)
+summary(predicted.data)
+
+
+## Lastly, we can plot the predicted probabilities for each sample having
+## heart disease and color by whether or not they actually had heart disease
+ggplot(data=predicted.data, aes(x=rank, y=probability.of.Attrition)) +
+  geom_point(aes(color=Attrition), alpha=1, shape=4, stroke=2) +
+  xlab("Index") +
+  ylab("Predicted probability of Attrition")
+
+ggsave("attrition_probabilities.pdf")
+```
+
+Predicted values (Y vs observations that were classified as positive Y^=1, or negative Y^=0, at a threshold of .45.
+
+```{r}
+S<-predict(logmod,type="response")
+Y<-data$Attrition
+Ps=(S>.45)*1
+rbind(c("","Y^=1",               "Y^=0"),
+   c("Y=1", sum((Ps==1)*(Y==1)), sum((Ps!=1)*(Y==1))),
+   c("Y=0", sum((Ps==1)*(Y==0)), sum((Ps!=1)*(Y==0))))
+```
+
+There are number of methods of evaluating whether a logistic model is a good model. One such way is sensitivity and specificity.
+
+Sensitivity and specificity are statistical measures of the performance of a binary classification test, also known in statistics as classification function:
+
+**Sensitivity** (also called the _true positive rate_, or the recall in some fields) measures the proportion of actual positives which are correctly identified as such (e.g., the percentage of sick people who are correctly identified as having the condition), and is complementary to the false negative rate. Sensitivity= true positives/(true positive + false negative)
+
+**Specificity** (also called the _true negative rate_) measures the proportion of negatives which are correctly identified as such (e.g., the percentage of healthy people who are correctly identified as not having the condition), and is complementary to the false positive rate. Specificity=true negatives/(true negative + false positives)
+
+```{r}
+FP=sum((Ps==1)*(Y==0))   #false positives
+TP=sum((Ps==1)*(Y==1))  #true positives
+FN=sum((Ps!=1)*(Y==1))   #false neagtive
+TN=sum((Ps!=1)*(Y==0))  #true negative
+```
+
+
+#### Compute Sensitivity: TP/(TP+FN)
+
+```{r}
+TP/(TP+FN)
+```
+
+
+#### Compute Specificity: TN/(TN+FP)
+
+```{r}
+TN/(TN+FP)
+```
+
+
+#### Compute the TRP (True positive rate) and FRT (False positive rate)
+
+```{r}
+sum((Ps==1)*(Y==0))/sum(Y==0)   #false positives
+```
+
+```{r}
+sum((Ps==1)*(Y==1))/sum(Y==1)   #true positives
+```
+
+
+
+
+#### AIC and BIC
+
+Additionally, there are four other important metrics - **AIC, AICc, BIC and Mallows Cp** - that are commonly used for model evaluation and selection. These are an unbiased estimate of the model prediction error **MSE**. The lower these metrics, the better the model.
+
+**AIC** stands for (Akaike’s Information Criteria), a metric developped by the Japanese Statistician, Hirotugu Akaike, 1970. The basic idea of AIC is to penalize the inclusion of additional variables to a model. It adds a penalty that increases the error when including additional terms. The lower the AIC, the better the model.
+
+#### AIC
+```{r}
+AIC(logmod)
+```
+
+**AICc** is a version of AIC corrected for small sample sizes.
+
+**BIC** (or _Bayesian information criteria_) is a variant of AIC with a stronger penalty for including additional variables to the model.
+
+#### BIC
+```{r}
+BIC(logmod)
+```
+
+
+## Cross Validation
+
+```{r}
+#-------------------------------------------------------------------------------
+# Cross validation (customized)
+
+library(plyr)   # progress bar
+library(caret)  # confusion matrix
+
+# False positive rate
+fpr <- NULL
+
+# False negative rate
+fnr <- NULL
+
+# Number of iterations
+k <- 500
+
+# Initialize progress bar
+#pbar <- create_progress_bar('text')
+#pbar$init(k)
+
+# Accuracy
+acc <- NULL
+
+set.seed(123)
+
+prob_cutoff = 0.50
+train_split = 0.95
+
+for(i in 1:k)
+{
+    # Train-test splitting
+    # train_split % of samples -> fitting
+    # 100-train_split % of samples -> testing
+    smp_size <- floor(train_split * nrow(data))
+    index <- sample(seq_len(nrow(data)),size=smp_size)
+    train <- data[index, ]
+    test <- data[-index, ]
+    
+    # Fitting
+    model <- logmod
+    
+    # Predict results
+    #results_prob <- predict(model, subset(test, select=c(1,3:35)), type='response')
+    results_prob <- predict(model, test, type='response')
+    
+    # If prob > prob_cutoff then 1, else 0
+    results <- ifelse(results_prob > prob_cutoff, 1, 0)
+    results <- factor(results, levels = c(0, 1))
+    
+    # Actual answers
+    answers <- test$Attrition
+    
+    # Accuracy calculation
+    misClasificError <- mean(answers != results)
+    
+    # Collecting results
+    acc[i] <- 1-misClasificError
+    
+    # Confusion matrix
+    cm <- confusionMatrix(data=results, reference=answers)
+    fpr[i] <- cm$table[2]/(nrow(data)-smp_size)
+    fnr[i] <- cm$table[3]/(nrow(data)-smp_size)
+    
+    #pbar$step()
+}
+
+# Average accuracy of the model
+mean(acc)
+
+par(mfcol=c(1,2))
+
+# Histogram of accuracy
+hist(acc,xlab='Accuracy',ylab='Freq',
+     col='cyan',border='blue',density=30)
+
+# Boxplot of accuracy
+boxplot(acc,col='cyan',border='blue',horizontal=T,xlab='Accuracy',
+        main='Accuracy CV')
+
+# Confusion matrix and plots of fpr and fnr
+mean(fpr)
+mean(fnr)
+hist(fpr,xlab='% of fnr',ylab='Freq',main='FPR',
+     col='cyan',border='blue',density=30)
+hist(fnr,xlab='% of fnr',ylab='Freq',main='FNR',
+     col='cyan',border='blue',density=30)
+```
+
+
+## Conclusion
+
+We used several techniques to build a robust Logistic Regression model to predict Attrition of an employee at a given company.
+
+First, we loaded the data into R Studio. Then we converted all variables to factors taking into consideration specific variables that are ordinal in nature. 
+
+After summarizing and visualizing our data regressors with respect to Attrition using various common libraries and techniques, we discovered that our Attrition response variable had a minority value of 1 resulting in a significantly unbalanced dataset. If not treated properly, our model would more frequently predict 0. Therefore, we used a common under/over sampling technique to balance our dataset.
+
+We then spent a significant amount of time looking at all of the 35 regressors using our intuition and emperical analysis to determine those variables that had significant interactions. Our primary heuristic used to gague a better model was by minimizing our AIC as we adjusted various interactions within the model. The end result was a pseudo-adjusted R2 value of 0.77 and a p-value of 0 indicating a good model. 
+
+We then computed the confusion matrix of our model which consisted of our precision and sensitivity corresponding to our true positive and true negative rates, respectively. Our recall was 0.97 where we predicted 97% of all True Positive samples correctly and we predicted 93% of all True Negative samples correctly.
+
+Finally, we plotted our 3000 predicted values which resulted in an S shaped curve which is to be expected for a Logistic Regression model with a large number of samples.
+
+Overall, we are very pleased with the outcome of our model. Our model showed several features that played a significant role in building a more robust model. 
+
+For example, the following interactions we used in our model make intuitive sense:
+
+1. factor(BusinessTravel) * DistanceFromHome * factor(MaritalStatus) * factor(WorkLifeBalance)
+
+One interpretation for this is that married employees with a family that have a bad work/life balance could lead to attrition as they seek positions that offer a better work/life balance. Conversely, this could also indicate that they stay because the employer values a work/life balance.
+
+2. factor(JobInvolvement) * factor(JobLevel) * factor(JobSatisfaction)
+
+If you are not involved in your job, you may not be satisfied.
+
+3. factor(EnvironmentSatisfaction) * factor(Gender) * factor(JobRole)
+
+If you are not happy in your environment due to various social reasons based on say gender imbalance, for example, this can be a key motivator to leave.
+
+4. MonthlyIncome * HourlyRate * factor(OverTime)
+
+Sometimes employees that feel they should make more will leave for higher wages. Likewise, if you get a lot of overtime, this can typically be a positive aspect for some.
+
+5. factor(StockOptionLevel) * TotalWorkingYears * TrainingTimesLastYear
+
+The longer you work at a company, the more stock options you are able to obtain. Likewise, if you are not able to receive training, you may become stagnant or bored doing the same thing over and over again.
+
+6. PercentSalaryHike * YearsAtCompany * YearsSinceLastPromotion * YearsWithCurrManager
+
+Again, depending on how long you have worked at a company, these interactions can lead to leaving if your manager is very bad or they could stay of their manager is great and they stay with the same manager for a long time. Often if you get a long with your manager, the relationship gets better over time.

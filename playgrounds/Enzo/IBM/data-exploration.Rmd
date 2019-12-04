@@ -1,0 +1,41 @@
+---
+title: "IBM Dataset Exploration"
+output: html_notebook
+---
+
+```{r}
+source("pairs.r")
+
+
+library(dplyr)
+library(ggplot2)
+library(pastecs)
+library(psych)
+library(Amelia)
+library(mlbench)
+library(corrplot)
+library(caret)
+```
+
+# Load data
+```{r}
+library(readr)
+data <- read_csv("data/WA_Fn-UseC_-HR-Employee-Attrition.csv")
+View(data)
+```
+
+
+#####################################
+##
+## Reformat the data so that it is
+## 1) Easy to use (add nice column names)
+## 2) Interpreted correctly by glm()..
+##
+#####################################
+
+```{r}
+head(data)
+summary(data)
+plot(data)
+```
+

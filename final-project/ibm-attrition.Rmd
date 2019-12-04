@@ -1,0 +1,676 @@
+---
+title: "IBM Attrition - A Logistic Regression Approach"
+output: html_notebook
+---
+
+```{r}
+source("pairs.r")
+
+
+library(dplyr)
+library(ggplot2)
+library(pastecs)
+library(psych)
+library(Amelia)
+library(mlbench)
+library(corrplot)
+library(caret)
+library(readr)
+library(gridExtra)
+library(grid)
+library(ggplot2)
+library(lattice)
+library(leaps)
+```
+
+#### Load data
+```{r}
+data <- read_csv("data/WA_Fn-UseC_-HR-Employee-Attrition.csv")
+head(data)
+```
+
+#### Summarize Data
+```{r}
+#####################################
+##
+## Reformat the data so that it is
+## 1) Easy to use (add nice column names)
+## 2) Interpreted correctly by glm()..
+##
+#####################################
+names(data)
+summary(data)
+```
+
+#### Clean and Format Data
+```{r}
+data$Attrition <- ifelse(data$Attrition == "Yes", 1, 0)
+data$Attrition <- factor(data$Attrition, levels = c(0, 1))
+
+data$Over18 <- ifelse(data$Over18 == "Y", 1, 0)
+data$Over18 <- factor(data$Over18, levels = c(0, 1))
+
+data$OverTime <- ifelse(data$OverTime == "Yes", 1, 0)
+data$OverTime <- factor(data$OverTime, levels = c(0, 1))
+
+data$BusinessTravel<-factor(data$BusinessTravel)
+data$Department<-factor(data$Department)
+data$EducationField<-factor(data$EducationField)
+data$Gender<-factor(data$Gender)
+data$MaritalStatus<-factor(data$MaritalStatus)
+data$JobRole<-factor(data$JobRole)
+
+data$Education<-factor(data$Education, order = TRUE, levels=c(1,2,3,4,5))
+data$EnvironmentSatisfaction<-factor(data$EnvironmentSatisfaction, order=TRUE, levels=c(1,2,3,4))
+data$JobInvolvement<-factor(data$JobInvolvement, order=TRUE, levels=c(1,2,3,4))
+data$JobSatisfaction<-factor(data$JobSatisfaction, order=TRUE, levels=c(1,2,3,4))
+data$PerformanceRating<-factor(data$PerformanceRating, order=TRUE, levels=c(1,2,3,4))
+data$RelationshipSatisfaction<-factor(data$RelationshipSatisfaction, order=TRUE, levels=c(1,2,3,4))
+data$WorkLifeBalance<-factor(data$WorkLifeBalance, order=TRUE, levels=c(1,2,3,4))
+data$StockOptionLevel<-factor(data$StockOptionLevel, order=TRUE, levels=c(0,1,2,3))
+
+str(data)
+names(data)
+```
+
+
+#### Describe Data
+```{r}
+stat.desc(data)
+describe(data)
+str(data)
+summary(data)
+```
+
+
+#### Attach Data (Mac Only)
+```{r}
+# attach(data)
+```
+
+
+#### Plot all Data Features Against Attrition
+```{r}
+for(i in 1:length(data)) {
+  plot(data$Attrition, eval(parse(text=paste("data",names(data)[i],sep="$"))), xlab = "Attrition", ylab = names(data)[i])
+}
+```
+
+
+#### Plot Missing Data
+```{r}
+help(missmap)
+options(repr.plot.width = 24, repr.plot.height = 24)
+missmap(data, col=c("blue", "red"), legend=TRUE)
+```
+
+
+#### Plot Correlations
+```{r}
+options(repr.plot.width = 16, repr.plot.height = 16)
+num_data <- data[, sapply(data, is.numeric)]
+stat.desc(num_data)
+correlations <- cor(num_data)
+corrplot(correlations, method="circle")
+```
+
+
+```{r}
+# View(data)
+plot(data[c(2,1,3,4,5)])
+plot(data[c(2,6,7,8,9)])
+plot(data[c(2,10,11,12,13)])
+plot(data[c(2,14,15,16,17)])
+plot(data[c(2,18,19,20,21)])
+plot(data[c(2,22,23,24,25)])
+plot(data[c(2,26,27,28,29)])
+plot(data[c(2,30,31,32,33)])
+plot(data[c(2,34,35)])
+```
+
+
+#### Summarize Categorical Data
+```{r}
+cat_data <- data[, sapply(data, is.factor)]
+summary(cat_data)
+```
+
+
+#### Plot our Data
+```{r}
+ggplot(data=data, aes(Attrition)) + geom_histogram(stat="count") + labs(x="Attrition")
+ggplot(data=data, aes(Age)) + geom_histogram(binwidth=5) + labs(x="Age")
+ggplot(data=data, aes(BusinessTravel)) + geom_histogram(stat="count") + labs(x="Business Travel")
+ggplot(data=data, aes(DailyRate)) + geom_histogram(binwidth=15) + labs(x="Daily Rate")
+ggplot(data=data, aes(Department)) + geom_histogram(stat="count") + labs(x="Department")
+ggplot(data=data, aes(DistanceFromHome)) + geom_histogram(binwidth=5) + labs(x="Distance from Home")
+ggplot(data=data, aes(Education)) + geom_histogram(stat="count") + labs(x="Education")
+ggplot(data=data, aes(EducationField)) + geom_histogram(stat="count") + labs(x="Education Field")
+ggplot(data=data, aes(EmployeeCount)) + geom_histogram(binwidth=1) + labs(x="Employee Count")
+ggplot(data=data, aes(EmployeeNumber)) + geom_histogram(binwidth=20) + labs(x="Employee Number")
+ggplot(data=data, aes(EnvironmentSatisfaction)) + geom_histogram(stat="count") + labs(x="Environment Satisfaction")
+ggplot(data=data, aes(Gender)) + geom_histogram(stat="count") + labs(x="Gender")
+ggplot(data=data, aes(HourlyRate)) + geom_histogram(binwidth=5) + labs(x="Hourly Rate")
+ggplot(data=data, aes(JobInvolvement)) + geom_histogram(stat="count") + labs(x="Job Involvement")
+ggplot(data=data, aes(JobLevel)) + geom_histogram(stat="count") + labs(x="Job Level")
+ggplot(data=data, aes(JobRole)) + geom_histogram(stat="count") + labs(x="Job Role")
+ggplot(data=data, aes(JobSatisfaction)) + geom_histogram(stat="count") + labs(x="Job Satisfaction")
+ggplot(data=data, aes(MaritalStatus)) + geom_histogram(stat="count") + labs(x="Marital Status")
+ggplot(data=data, aes(MonthlyIncome)) + geom_histogram(binwidth=50) + labs(x="Monthly Income")
+ggplot(data=data, aes(MonthlyRate)) + geom_histogram(binwidth=50) + labs(x="Monthly Rate")
+ggplot(data=data, aes(NumCompaniesWorked)) + geom_histogram(binwidth=1) + labs(x="Num Companies Worked")
+ggplot(data=data, aes(Over18)) + geom_histogram(stat="count") + labs(x="Over 18")
+ggplot(data=data, aes(PercentSalaryHike)) + geom_histogram(binwidth=5) + labs(x="Percent Salary Hike")
+ggplot(data=data, aes(PerformanceRating)) + geom_histogram(stat="count") + labs(x="Performance Rating")
+ggplot(data=data, aes(RelationshipSatisfaction)) + geom_histogram(stat="count") + labs(x="Relationship Satisfaction")
+ggplot(data=data, aes(StandardHours)) + geom_histogram(binwidth=5) + labs(x="Standard Hours")
+ggplot(data=data, aes(StockOptionLevel)) + geom_histogram(stat="count") + labs(x="Stock Option Level")
+ggplot(data=data, aes(TotalWorkingYears)) + geom_histogram(binwidth=5) + labs(x="Total Working Years")
+ggplot(data=data, aes(TrainingTimesLastYear)) + geom_histogram(binwidth=5) + labs(x="Training Times Last Year")
+ggplot(data=data, aes(WorkLifeBalance)) + geom_histogram(stat="count") + labs(x="Work Life Balance")
+ggplot(data=data, aes(YearsAtCompany)) + geom_histogram(binwidth=2) + labs(x="Years At Company")
+ggplot(data=data, aes(YearsSinceLastPromotion)) + geom_histogram(binwidth=2) + labs(x="Years Since Last Promotion")
+ggplot(data=data, aes(YearsWithCurrManager)) + geom_histogram(binwidth=2) + labs(x="Years With Curr Manager")
+```
+
+```{r}
+
+#######################################
+##  BUILD OUR LOGISTIC MODEL - logmod
+#######################################
+
+# xtabs(~Attrition + Age, data=data)
+xtabs(~Attrition + BusinessTravel, data=data)
+# xtabs(~Attrition + DailyRate, data=data)
+xtabs(~Attrition + factor(Department), data=data)
+# xtabs(~Attrition + DistanceFromHome, data=data)
+xtabs(~Attrition + factor(Education), data=data)
+xtabs(~Attrition + EducationField, data=data)
+xtabs(~Attrition + EmployeeCount, data=data)
+# xtabs(~Attrition + EmployeeNumber, data=data)
+xtabs(~Attrition + factor(EnvironmentSatisfaction), data=data)
+xtabs(~Attrition + factor(Gender), data=data)
+# xtabs(~Attrition + HourlyRate, data=data)
+xtabs(~Attrition + factor(JobInvolvement), data=data)
+xtabs(~Attrition + factor(JobLevel), data=data)
+xtabs(~Attrition + factor(JobRole), data=data)
+xtabs(~Attrition + factor(JobSatisfaction), data=data)
+xtabs(~Attrition + factor(MaritalStatus), data=data)
+# xtabs(~Attrition + MonthlyIncome, data=data)
+# xtabs(~Attrition + MonthlyRate, data=data)
+xtabs(~Attrition + NumCompaniesWorked, data=data)
+xtabs(~Attrition + factor(OverTime), data=data)
+# xtabs(~Attrition + PercentSalaryHike, data=data)
+xtabs(~Attrition + factor(PerformanceRating), data=data)
+xtabs(~Attrition + factor(RelationshipSatisfaction), data=data)
+xtabs(~Attrition + StandardHours, data=data)
+xtabs(~Attrition + factor(StockOptionLevel), data=data)
+# xtabs(~Attrition + TotalWorkingYears, data=data)
+xtabs(~Attrition + TrainingTimesLastYear, data=data)
+xtabs(~Attrition + factor(WorkLifeBalance), data=data)
+# xtabs(~Attrition + YearsAtCompany, data=data)
+# xtabs(~Attrition + YearsSinceLastPromotion, data=data)
+# xtabs(~Attrition + YearsWithCurrManager, data=data)
+```
+
+```{r}
+#####################################
+##
+## Now we will use all of the data available to predict attrition
+##
+#####################################
+
+# logmod <- glm(Attrition ~ ., data=data, family="binomial")
+logmod <- glm(
+  factor(Attrition) ~ 
+    Age+
+    factor(BusinessTravel)+
+    DailyRate+
+    factor(Department)+
+    DistanceFromHome+
+    factor(Education)+
+    EducationField+
+    #EmployeeCount+
+    #EmployeeNumber+
+    factor(EnvironmentSatisfaction)+
+    factor(Gender)+
+    HourlyRate+
+    factor(JobInvolvement)+
+    factor(JobLevel)+
+    factor(JobRole)+
+    factor(JobSatisfaction)+
+    factor(MaritalStatus)+
+    MonthlyIncome+
+    MonthlyRate+
+    NumCompaniesWorked+
+    factor(OverTime)+
+    PercentSalaryHike+
+    factor(PerformanceRating)+
+    factor(RelationshipSatisfaction)+
+    StandardHours+
+    factor(StockOptionLevel)+
+    TotalWorkingYears+
+    TrainingTimesLastYear+
+    factor(WorkLifeBalance)+
+    YearsAtCompany+
+    YearsSinceLastPromotion+
+    YearsWithCurrManager
+  , data=data
+  , family=binomial
+)
+summary(logmod)
+```
+
+#### Compensating for Unbalanced Data
+
+```{r}
+original.data<-data
+```
+
+
+```{r}
+#balancing data:
+#what to do if number of 1's is much smaller than the number of 0's
+#find the indeces corresponding to 0s, and 1's
+input_ones <- data[which(data$Attrition == 1), ]  # all 1's
+input_zeros <- data[which(data$Attrition == 0), ]  # all 0's
+
+#reduce the number of 0's by selecting a sample at random of the size of the 1's you have. 
+#you can have a different proportion. I made it 50:50 but use your judgement. 
+#Perhaps you want 1:2 ratio to include more cases.
+#set.seed(100)  # for repeatability of samples
+#which.zeros<- sample(1:nrow(input_zeros), nrow(input_ones))
+#sample.from.zeros<-input_zeros[which.zeros,]
+#put the data together:
+#balanced.data<-rbind(input_ones,sample.from.zeros)
+
+#Altenatively, you can leave the zeros as they are and resample the 1's
+#set.seed(100)  # for repeatability of samples
+#which.ones<- sample(1:2*nrow(input_ones), nrow(input_zeros),replace=TRUE)
+#resample.ones<-input_ones[which.ones,]
+#balanced.data<-rbind(resample.ones,input_zeros)
+
+#another way: sake a sample of the same zise for both (p=.5), total samples=3000
+#  "both" oversamples minority(1's) and undersamples mayority(0's)
+library(ROSE)
+balanced.data<-ovun.sample(Attrition~.,data=data,method="both",p=0.5,N=3000,seed=1)$data
+```
+
+
+```{r}
+#data<-original.data
+data<-balanced.data
+
+logmod <- glm(
+  factor(Attrition) ~ 
+    Age
+  + factor(BusinessTravel) * DistanceFromHome * factor(MaritalStatus) * factor(WorkLifeBalance)
+  + DailyRate
+  + factor(Department)
+  + factor(Education) * EducationField
+  + factor(JobInvolvement) * factor(JobLevel) * factor(JobSatisfaction)
+  + factor(EnvironmentSatisfaction) * factor(Gender) * factor(JobRole)
+  + MonthlyIncome * HourlyRate * factor(OverTime)
+  + NumCompaniesWorked
+  + factor(PerformanceRating)
+  + factor(RelationshipSatisfaction)
+  + factor(StockOptionLevel) * TotalWorkingYears * TrainingTimesLastYear
+  + PercentSalaryHike * YearsAtCompany * YearsSinceLastPromotion * YearsWithCurrManager
+  , data=data
+  , family=binomial
+)
+#summary(logmod)
+AIC(logmod)
+BIC(logmod)
+```
+
+
+## Exponentiating we get the Odds Ratio
+
+Odds Ratios You can also exponentiate the coefficients and interpret them as odds-ratios.
+
+    ln a P(Attrition=1)/P(Attrition=0)
+
+R will do this computation for you. To get the exponentiated coefficients, you tell R that you want to exponentiate (exp), and that the object you want to exponentiate is called coefficients and it is part of mylogit (coef(logmod)). We can use the same logic to get odds ratios and their confidence intervals, by exponentiating the confidence intervals from before. To put it all in one table, we use cbind to bind the coefficients and confidence intervals column-wise.
+
+```{r}
+#cbind(exp.coef=exp(logmod$coef),exp(confint(logmod)))
+```
+
+If we use R's diagnostic plot, the first one is the scatterplot of the residuals, against predicted values (the score actually).
+
+```{r}
+ #plot(logmod,which=1)
+```
+
+```{r}
+#plot(predict(logmod),residuals(logmod))
+#abline(h=0,lty=2,col="grey")
+```
+
+Why do we have those two lines of points ? Because we predict a probability for a variable taking values 0 or 1. If the tree value is 0, then we always predict more, and residuals have to be negative (the blue points) and if the true value is 1, then we underestimate, and residuals have to be positive (the red points). And of course, there is a monotone relationship. We can see more clearly what’s going on when we use colors.
+
+```{r}
+#plot(predict(logmod),residuals(logmod),col=c("blue","red")[1+data$Attrition])
+#abline(h=0,lty=2,col="grey")
+```
+
+Points are exactly on a smooth curve, as a function of the predicted value,
+
+To understand what is going on, let’s fit a curve through those points: lowess regression:
+
+```{r}
+#plot(predict(logmod),residuals(logmod),col=c("blue","red")[1+data$Attrition])
+#abline(h=0,lty=2,col="grey")
+#lines(lowess(predict(logmod),residuals(logmod)),col="black",lwd=2)
+```
+
+We want the regressed line to be very close to the dotted line. Here we draw a CI around the curve: use loess()
+
+# library(stats)
+
+Fit a polynomial surface determined by one or more numerical predictors, using local fitting. Fitting is done locally. That is, for the fit at point x, the fit is made using points in a neighborhood of x, weighted by their distance from x. The size of the neighborhood is controlled by α the default is .75. (loess is a newer formula of lowess)
+
+```{r}
+#plot(predict(logmod),residuals(logmod),col=c("blue","red")[1+data$Attrition])
+#abline(h=0,lty=2,col="grey")
+#lines(lowess(predict(logmod),residuals(logmod)),col="black",lwd=2)
+#rl<-loess(residuals(logmod)~predict(logmod)) 
+#y=predict(rl,se=TRUE)
+#segments(predict(logmod),y$fit+2*y$se.fit,predict(logmod),y$fit-2*y$se.fit,col="green")
+```
+
+http://freakonometrics.hypotheses.org/8210
+
+# Tests for Coefficients: Walds Tests
+
+- H0:βj=0  (Xj has no effect on P(Y=1)) vs
+
+- Ha:βj≠0
+
+Test statistic:
+
+z=bj/se(bj)
+
+this is approximately N(0,1) under H0
+
+Heart Attack Example: #fitting the logistic model
+
+
+```{r}
+#summary(logmod)
+```
+
+# Test for subset of variables:
+
+- H0:βp−k+1=⋯=βp=0  reduced model
+
+- Ha:  full model ( all variables in the model)
+
+This is likelihood ratio test that compares the log likelihoods of the two models
+
+Λ=2 ln L(Full model)/L(Reduced model)
+
+Asymptotically, Λ has a Chi-square distribution. Thus the test statistics is aproximate Chi-square.
+
+**Test statistic:**
+
+χ2=2 log L(Full model) − 2 log L(Reduced model)
+
+where L()= the likelihood function
+
+Under the null hypothesis, the test statistic is approximately Chi-squared with df=k (number of additional variables in the full model)
+
+
+# Deviance
+
+The Deviance of a model is
+
+Deviance = D = −2 log L(model)
+
+So, the tests statistic for the above situation is
+
+χ2=D(Reduced model)−D(Full model)
+
+
+# Model Overall Test:
+
+- H0:  reduced model = no variables (only intercept) β1=⋯βp=0 This is the NULL model
+
+- Ha:  full model (all variables in the model)
+
+Test statistic:
+
+Deviance= χ^2=-2 log L(reduced)/L(full) = D(reduced)-D(full)
+
+Approximately χ2 with df=n−p
+
+Output from R:
+Null deviance: 27.726 on 19 degrees of freedom
+Residual deviance: 18.820 on 17 degrees of freedom
+AIC: 24.82
+
+```{r}
+#anova(logmod)
+```
+
+D(Null) = 27.726 df=19
+D(model with Anger & Anxiety) = 18.820, df=17
+
+Test statistic:
+
+χ2=D(Null)−D(model with Anger & Anxiety)=27.726−18.820=8.906
+
+with df=2, so 8.906 is high. P(χ2>8.906)=
+
+```{r}
+1-pchisq(8.906,2)
+```
+
+This means that the model with Anger and Anxiety in it is better than the model with no variables.
+
+#### Now calculate the overall "Pseudo R-squared" and its p-value
+```{r}
+ll.null <- logmod$null.deviance/-2
+ll.proposed <- logmod$deviance/-2
+ll.null
+ll.proposed
+```
+
+
+#### McFadden's Pseudo R^2 = [ LL(Null) - LL(Proposed) ] / LL(Null)
+```{r}
+(ll.null - ll.proposed) / ll.null
+```
+
+
+#### The p-value for the R^2
+```{r}
+1 - pchisq(2*(ll.proposed - ll.null), df=(length(logmod$coefficients)-1))
+```
+
+
+#### now we can plot the data
+```{r}
+predicted.data <- data.frame(
+  probability.of.Attrition=logmod$fitted.values,
+  Attrition=data$Attrition)
+
+predicted.data <- predicted.data[order(predicted.data$probability.of.Attrition, decreasing=FALSE),]
+predicted.data$rank <- 1:nrow(predicted.data)
+summary(predicted.data)
+
+
+## Lastly, we can plot the predicted probabilities for each sample having
+## heart disease and color by whether or not they actually had heart disease
+ggplot(data=predicted.data, aes(x=rank, y=probability.of.Attrition)) +
+  geom_point(aes(color=Attrition), alpha=1, shape=4, stroke=2) +
+  xlab("Index") +
+  ylab("Predicted probability of Attrition")
+
+ggsave("attrition_probabilities.pdf")
+```
+
+Predicted values (Y vs observations that were classified as positive Y^=1, or negative Y^=0, at a specified threshold.
+
+```{r}
+S<-predict(logmod,type="response")
+Y<-data$Attrition
+Ps=(S>.45)*1
+rbind(c("","Y^=1",               "Y^=0"),
+   c("Y=1", sum((Ps==1)*(Y==1)), sum((Ps!=1)*(Y==1))),
+   c("Y=0", sum((Ps==1)*(Y==0)), sum((Ps!=1)*(Y==0))))
+```
+
+There are number of methods of evaluating whether a logistic model is a good model. One such way is sensitivity and specificity.
+
+Sensitivity and specificity are statistical measures of the performance of a binary classification test, also known in statistics as classification function:
+
+**Sensitivity** (also called the _true positive rate_, or the recall in some fields) measures the proportion of actual positives which are correctly identified as such (e.g., the percentage of sick people who are correctly identified as having the condition), and is complementary to the false negative rate. Sensitivity= true positives/(true positive + false negative)
+
+**Specificity** (also called the _true negative rate_) measures the proportion of negatives which are correctly identified as such (e.g., the percentage of healthy people who are correctly identified as not having the condition), and is complementary to the false positive rate. Specificity=true negatives/(true negative + false positives)
+
+```{r}
+FP=sum((Ps==1)*(Y==0))   #false positives
+TP=sum((Ps==1)*(Y==1))  #true positives
+FN=sum((Ps!=1)*(Y==1))   #false neagtive
+TN=sum((Ps!=1)*(Y==0))  #true negative
+```
+
+
+#### Compute Sensitivity: TP/(TP+FN)
+
+```{r}
+TP/(TP+FN)
+```
+
+
+#### Compute Specificity: TN/(TN+FP)
+
+```{r}
+TN/(TN+FP)
+```
+
+
+#### Compute the TRP (True positive rate) and FRT (False positive rate)
+
+```{r}
+sum((Ps==1)*(Y==0))/sum(Y==0)   #false positives
+```
+
+```{r}
+sum((Ps==1)*(Y==1))/sum(Y==1)   #true positives
+```
+
+
+
+```{r}
+#### Let's find optimal subsets of features for the best model
+#dim(data)
+
+#help(regsubsets)
+#regfit.bwd=regsubsets(
+#  logmod$formula
+#  ,data, nvmax=15, nbest=3, method="backward", really.big=T)
+#reg.summary<-summary(regfit.bwd)
+#names(reg.summary)
+```
+
+#### [Model Performance Assessment](http://www.sthda.com/english/articles/38-regression-model-validation/158-regression-model-accuracy-metrics-r-square-aic-bic-cp-and-more/)
+
+```{r}
+#max.rsq=which.max(reg.summary$rsq)
+#max.adjr2=which.max(reg.summary$adjr2)
+#min.rss=which.min(reg.summary$rss)
+#min.cp=which.min(reg.summary$cp)
+```
+
+#### The r-squared for each model (RSQ)
+
+```{r}
+#plot(reg.summary$rsq, xlab="Number of Variables", ylab="RSquare", type="l")
+#points(max.rsq,reg.summary$rsq[max.rsq],col="red",cex=2,pch=20)
+#plot(regfit.bwd,scale = "r2")
+#plot(regfit.bwd,scale = "adjr2")
+```
+
+
+#### Residual Sum of Squares for each model (RSS)
+
+The Residual Sum of Squares (RSS) is the sum of the squared distances between your actual versus your predicted values:
+
+Summation_1_to_n{ (yi-yi_hat)^2 }
+
+The actual number you get depends largely on the scale of your response variable. 
+Taken alone, the RSS isn't so informative.
+
+https://stats.stackexchange.com/a/349246
+
+```{r}
+#plot(reg.summary$rss, xlab="Number of Variables", ylab="RSS", type="l")
+#points(min.rss,reg.summary$rss[min.rss],col="red",cex=2,pch=20)
+```
+
+
+#### Adjusted-R2 (Adjusted R-Squared)
+
+Concerning R2, there is an adjusted version, called Adjusted R-squared, which adjusts the R2 for having too many variables in the model.
+
+```{r}
+#plot(reg.summary$adjr2, xlab="Number of Variables", ylab="adjR2", type="l")
+#points(max.adjr2,reg.summary$adjr2[max.adjr2],col="red",cex=2,pch=20)
+#max.adjr2
+```
+
+
+#### AIC, AICc, BIC and Mallows Cp
+
+Additionally, there are four other important metrics - **AIC, AICc, BIC and Mallows Cp** - that are commonly used for model evaluation and selection. These are an unbiased estimate of the model prediction error **MSE**. The lower these metrics, the better the model.
+
+**AIC** stands for (Akaike’s Information Criteria), a metric developped by the Japanese Statistician, Hirotugu Akaike, 1970. The basic idea of AIC is to penalize the inclusion of additional variables to a model. It adds a penalty that increases the error when including additional terms. The lower the AIC, the better the model.
+
+#### AIC
+```{r}
+AIC(logmod)
+```
+
+**AICc** is a version of AIC corrected for small sample sizes.
+
+**BIC** (or _Bayesian information criteria_) is a variant of AIC with a stronger penalty for including additional variables to the model.
+
+#### BIC
+```{r}
+BIC(logmod)
+```
+
+#### Schwartz's information criterion, BIC
+
+```{r}
+#plot(regfit.bwd,scale = "bic")
+# coef(regfit.bwd, 10) #default bic
+```
+
+
+**Mallows Cp:** A variant of AIC developed by Colin Mallows.
+
+#### Mallows' Cp
+
+```{r}
+#plot(reg.summary$cp,xlab="Number of Variables",ylab="Cp",type="l")
+#points(min.cp,reg.summary$cp[min.cp],col="red",cex=2,pch=20)
+#plot(regfit.bwd,scale = "Cp")
+```
+
+
+```{r}
+#help(regsubsets)
+#regfit.full=regsubsets(
+#  logmod$formula
+#  ,data=data, nvmax=15, nbest=3, method="exhaustive")
+#summary(regfit.full)
+#plot(regfit.full,scale="Cp")
+#coef(regfit.full,which.min(summary(regfit.full)$cp))
+AIC(logmod)
+BIC(logmod)
+```
+
